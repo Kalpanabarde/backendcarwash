@@ -25,7 +25,8 @@ export default function PersonalDetail() {
   const [showDialog, setShowDialog] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [carForm, setCarForm] = useState({ carName: "", carNumber: "" });
- 
+
+
   const [selectedCars, setSelectedCars] = useState([]);
 
 
@@ -73,11 +74,11 @@ const checkPhoneNumber = async () => {
   };
 
   // Open Edit Car Modal
-  const openEditCar = (index) => {
+  /**const openEditCar = (index) => {
     setCarForm(cars[index]);
     setEditIndex(index);
     setShowDialog(true);
-  };
+  };**/
 
   // Save Car (Add or Update)
 const saveCar = () => {

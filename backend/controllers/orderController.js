@@ -69,7 +69,7 @@ exports.createOrder = async (req, res) => {
         totalAmount: TotalPrice,
       },
       payment: {
-        method: paymentMethod,
+        method: paymentMethod.toLowerCase(),
         status: paymentStatus || "pending",
       },
     });
@@ -86,6 +86,29 @@ exports.createOrder = async (req, res) => {
   }
 };
 
+
+
+/* ================= GET ORDER BY ID ================= */
+exports.getOrderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) return res.status(400).json({ message: "ID required" });
+
+    // Fetch order and populate customer details
+    const order = await Order.findById(id).populate("customerId");
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+
 /* ================= GET ALL ORDERS ================= */
 exports.getAllOrders = async (req, res) => {
   try {
@@ -99,12 +122,168 @@ exports.getAllOrders = async (req, res) => {
   }
 };
 
+
+/* ================= GET ALL CUSTOMERS ================= */
+exports.getAllCustomers = async (req, res) => {
+  try {
+    const customers = await Customer.find().sort({ createdAt: -1 });
+    res.json(customers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/* ================= GET CUSTOMER BY ID ================= */
+exports.getCustomerById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) return res.status(400).json({ message: "ID required" });
+
+    const customer = await Customer.findById(id);
+    if (!customer) return res.status(404).json({ message: "Customer not found" });
+
+    res.json(customer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+exports.createCustomer = async (req, res) => {
+  try {
+    const { name, phone, cars } = req.body;
+
+    if (!name || !phone || !Array.isArray(cars) || cars.length === 0) {
+      return res.status(400).json({ message: "Name, phone, and at least one car are required" });
+    }
+
+    const existingCustomer = await Customer.findOne({ phone });
+    if (existingCustomer) {
+      return res.status(409).json({ message: "Customer already exists" });
+    }
+
+    const customer = await Customer.create({ name, phone, cars });
+
+    // Convert to plain object and rename _id to id
+    const customerObj = customer.toObject();
+    customerObj.id = customerObj._id;
+    delete customerObj._id;
+    delete customerObj.__v;
+
+    // Return the record directly at top level
+    res.status(201).json(customerObj);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
 /* ================= RESET ================= */
 exports.resetOrders = async (req, res) => {
   try {
     await Order.deleteMany({});
     await Customer.deleteMany({});
     res.json({ message: "All orders and customers cleared." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/* ================= UPDATE ORDER BY ID ================= */
+exports.updateOrderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { service, bill, payment } = req.body;
+
+    if (!id) return res.status(400).json({ message: "Order ID required" });
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Update only provided fields
+    if (service) order.service = service;
+    if (bill?.quantity) order.bill.quantity = bill.quantity;
+    if (bill?.totalAmount) order.bill.totalAmount = bill.totalAmount;
+    if (payment?.method) order.payment.method = payment.method;
+    if (payment?.status) order.payment.status = payment.status;
+
+    await order.save();
+
+    res.json({
+      message: "Order updated successfully",
+      data: order,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/* ================= DELETE ORDER BY ID ================= */
+exports.deleteOrderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) return res.status(400).json({ message: "Order ID required" });
+
+    const order = await Order.findByIdAndDelete(id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    res.json({
+      message: "Order deleted successfully",
+      deletedId: id,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+exports.updateCustomerById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, phone, cars } = req.body;
+
+    const customer = await Customer.findById(id);
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    if (name) customer.name = name;
+    if (phone) customer.phone = phone;
+    if (Array.isArray(cars)) customer.cars = cars;
+
+    await customer.save();
+
+    res.json({
+      message: "Customer updated successfully",
+      data: customer,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+exports.deleteCustomerById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const customer = await Customer.findByIdAndDelete(id);
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    // Optional: delete related orders
+    await Order.deleteMany({ customerId: id });
+
+    res.json({ message: "Customer deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

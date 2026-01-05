@@ -1,4 +1,4 @@
-import Service from "../models/Service.js";
+import Service from "../service/models/Service.js";
 
 
 // Temporary in-memory services for GET API
@@ -17,15 +17,35 @@ const services = [
 // GET all services (temporary)
 export const getServices = async (req, res) => {
   try {
-    const dbServices = await Service.find();
+    const {
+      _sort = 'price',
+      _order = 'ASC',
+    } = req.query;
 
-    // 👇 agar DB empty hai to temporary data bhejo
-    if (!dbServices || dbServices.length === 0) {
-      return res.status(200).json(services);
+    const sortOrder = _order === 'ASC' ? 1 : -1;
+
+    const dbServices = await Service.find()
+      .sort({ [_sort]: sortOrder });
+
+    res.status(200).json(dbServices);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+// GET single service by ID
+export const getServiceById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const service = await Service.findById(id);
+
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
     }
 
-    // 👇 warna DB ka data
-    res.status(200).json(dbServices);
+    res.status(200).json(service);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -52,11 +72,23 @@ export const updateService = async (req, res) => {
       req.body,
       { new: true }
     );
-    res.json(updatedService);
+
+    if (!updatedService) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+
+    // Map _id -> id for RA convenience
+    const serviceWithId = {
+      ...updatedService.toObject(),
+      id: updatedService._id,
+    };
+
+    res.json(serviceWithId);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 // DELETE service
 export const deleteService = async (req, res) => {

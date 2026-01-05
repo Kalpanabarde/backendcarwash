@@ -18,7 +18,7 @@ export default function ServicePage() {
     const fetchServices = async () => {
       try {
         setLoading(true);
-        const res = await axios.get("http://localhost:4000/api/services");
+        const res = await axios.get("http://localhost:4000/api/service");
         setServices(res.data);
       } catch (err) {
         console.error("Error fetching services:", err);
