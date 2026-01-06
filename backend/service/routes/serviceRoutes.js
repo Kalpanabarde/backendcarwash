@@ -1,15 +1,15 @@
 const express = require("express");
 const router = express.Router();
-//const controller = require("../controllers/orderController");
-const {getServices, createService, updateServicePrice, deleteService} = require('../controllers/serviceController');
+const { getServices, getServiceById, createService, updateServicePrice, deleteService} = require('../controllers/serviceController');
 const { protectAdmin } = require('../middleware/authMiddleware');
 
 
 
 
-//middleware authentication remove for temperory
+//for admin access only
 router.get('/service', protectAdmin, getServices);
-router.post('/service', protectAdmin, createService);
+router.get('/service/:id', protectAdmin, getServiceById);
+router.post('/service/create', protectAdmin, createService);
 router.put('/service/:id', protectAdmin, updateServicePrice);
 router.delete('/service/:id', protectAdmin, deleteService);
 

@@ -6,11 +6,14 @@ const authRoutes = require("./admin/routes/authRoutes");
 const adminRoutes = require("./admin/routes/adminRoutes");
 const staffRoutes = require("./admin/routes/staffRoutes");
 const { ensureAdmin } = require("./admin/script/ensureAdmin"); 
-const forgotPasswordRoutes = require("./admin/forgotPassword/routes/authRoutes");
 const discountKeyRoutes = require("./securityKey/routes/discountRoutes");
 const verifyKeyRoutes = require("./securityKey/routes/verifyRoutes");
 const keyUpdateRoutes = require("./securityKey/routes/keyUpdateRoutes");
 const serviceRoutes = require("./service/routes/serviceRoutes");
+//const routesApi = require("./service/APIKey/routesApi")
+const userServiceRoute = require("./service/routes/userServiceRoute");
+const passwordRoutes = require("./admin/forgotPassword/routes/authRoutes");
+
 
 const app = express();
 
@@ -34,11 +37,12 @@ app.use("/icons", express.static("icons"));
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/staff", staffRoutes);
-app.use("/api/auth", forgotPasswordRoutes);
 app.use("/api/admin/discount", discountKeyRoutes);
 app.use("/api/discount", verifyKeyRoutes);
 app.use("/api/admin", keyUpdateRoutes);
 app.use("/api/admin", serviceRoutes);
+app.use('/api', userServiceRoute )
+app.use('/api/auth', passwordRoutes)
 
 
 const PORT = process.env.PORT || 4000;

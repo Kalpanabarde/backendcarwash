@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./App.css";
@@ -74,11 +75,11 @@ const checkPhoneNumber = async () => {
   };
 
   // Open Edit Car Modal
-  /**const openEditCar = (index) => {
+  const openEditCar = (index) => {
     setCarForm(cars[index]);
     setEditIndex(index);
     setShowDialog(true);
-  };**/
+  };
 
   // Save Car (Add or Update)
 const saveCar = () => {
@@ -149,7 +150,7 @@ const handleSubmit = async (e) => {
     <form className="personal-form" onSubmit={handleSubmit}>
       <h2 className="form-title">Personal Details</h2>
 
-      {/* PHONE */}
+    
       
   
 
@@ -171,7 +172,7 @@ const handleSubmit = async (e) => {
         )}
       </div>
 
-      {/* NAME */}
+  
       <div className="form-group">
         <label>Name</label>
         <input
@@ -184,12 +185,11 @@ const handleSubmit = async (e) => {
         />
       </div>
 
-      {/* CAR SECTION */}
-{/* CAR SECTION */}
+
 <div className="form-group">
   <label>Car Details</label>
 
-  {/* IF CAR EXISTS (NEW OR EXISTING CUSTOMER) */}
+
 {cars.length > 0 && (
   <div className="car-list">
     {cars.map((car, index) => (
@@ -220,7 +220,7 @@ const handleSubmit = async (e) => {
 )}
 
 
-  {/* IF NO CAR YET */}
+
   {cars.length === 0 && (
     <button
       type="button"
@@ -233,7 +233,7 @@ const handleSubmit = async (e) => {
 </div>
 
 
-      {/* QUANTITY */}
+  
       <div className="form-group">
         <label>Quantity</label>
         <select
@@ -255,7 +255,7 @@ const handleSubmit = async (e) => {
         Continue
       </button>
 
-      {/* CAR MODAL */}
+ 
       {showDialog && (
         <div className="dialog-overlay">
           <div className="dialog-box">

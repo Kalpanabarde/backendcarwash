@@ -1,12 +1,12 @@
+// routes/authRoutes.js
 const express = require("express");
-const { forgotPassword, resetPassword } = require("../controller/authController");
-
 const router = express.Router();
+const { requestPasswordReset, resetPassword } = require("../controller/authController");
 
-// POST /api/auth/forgot-password
-router.post("/forgot-password", forgotPassword);
+// Request OTP
+router.post("/password-reset/request", requestPasswordReset);
 
-// POST /api/auth/reset-password/:token
-router.post("/reset-password/:token", resetPassword);
+// Reset password with OTP
+router.post("/password-reset/verify", resetPassword);
 
 module.exports = router;

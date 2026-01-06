@@ -1,145 +1,86 @@
-
-const crypto = require("crypto");
+// controllers/authController.js
 const bcrypt = require("bcryptjs");
 const User = require("../../models/userModel");
-const sendEmail = require("../utils/sendEmail");
+const sendSMS = require("../utils/sendSMS");
 
-// ===== FORGOT PASSWORD =====
-exports.forgotPassword = async (req, res) => {
+// ==============================
+// STEP 1: Request OTP
+// ==============================
+
+
+exports.requestPasswordReset = async (req, res) => {
   try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const { phone } = req.body;
 
-    // Generate reset token
-    const token = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    // 1️⃣ Validate phone
+    if (!phone) {
+      return res.status(400).json({ message: "Phone number is required" });
+    }
 
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    console.log("Phone received:", phone);
+
+    // 2️⃣ Find user
+    const user = await User.findOne({ phone, role: "admin" });
+    if (!user) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    console.log("User found:", user.email);
+
+    // 3️⃣ Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    // 4️⃣ Save OTP to DB
+    user.resetPasswordOTP = otp;
+    user.resetPasswordExpires = otpExpiry;
+
     await user.save();
+    console.log("OTP saved in DB:", otp);
 
-    // Create reset URL
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
-
-    // Send email
-    await sendEmail(
-      user.email,
-      "Car Wash Admin Password Reset",
-      `Click the link below to reset your password:\n\n${resetUrl}\n\nThis link will expire in 15 minutes.`
-    );
-
-    res.json({ message: "Password reset email sent. Check your inbox." });
+    // 5️⃣ Send SMS (wrapped in try-catch so it doesn't break API)
+    try {
+      await sendSMS(phone, `Your OTP for password reset is ${otp}`);
+      console.log("SMS sent successfully");
+      return res.status(200).json({ message: "OTP sent to your phone" });
+    } catch (smsError) {
+      console.error("SMS sending failed:", smsError);
+      return res
+        .status(200)
+        .json({ message: "OTP generated, but SMS sending failed" });
+    }
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error in requestPasswordReset:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// ===== RESET PASSWORD =====
+// ==============================
+// STEP 2: Reset password
+// ==============================
 exports.resetPassword = async (req, res) => {
   try {
-    const { token } = req.params;
-    const { newPassword } = req.body;
+    const { phone, otp, newPassword } = req.body;
 
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    if (!phone || !otp || !newPassword)
+      return res.status(400).json({ message: "Phone, OTP, and new password are required" });
 
     const user = await User.findOne({
-      resetPasswordToken: hashedToken,
+      phone,
+      resetPasswordOTP: otp,
       resetPasswordExpires: { $gt: Date.now() },
     });
 
-    if (!user) return res.status(400).json({ message: "Token is invalid or expired" });
+    if (!user) return res.status(400).json({ message: "Invalid or expired OTP" });
 
-    // Set new password
     user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = undefined;
+    user.resetPasswordOTP = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    res.json({ message: "Password has been reset successfully" });
+    return res.json({ message: "Password reset successful" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/**const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
-const User = require("../../models/userModel");
-
-
-exports.forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const token = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 min
-    await user.save();
-
-    // Instead of sending email, return token in response (for admin use only)
-    res.json({
-      message: "Password reset token generated",
-      resetToken: token, // save this securely
-      info: "Use this token in POST /api/auth/reset-password/:token"
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-
-
-// Reset Password
-exports.resetPassword = async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { newPassword } = req.body;
-
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpires: { $gt: Date.now() },
-    });
-
-    if (!user) return res.status(400).json({ message: "Token is invalid or expired" });
-
-    // Set new password
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    await user.save();
-
-    res.json({ message: "Password has been reset successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-};**/
-
