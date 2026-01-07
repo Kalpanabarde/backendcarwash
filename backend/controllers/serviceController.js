@@ -1,4 +1,4 @@
-import Service from "../service/models/Service.js";
+import Service from "../service/models/service.js";
 
 
 // Temporary in-memory services for GET API

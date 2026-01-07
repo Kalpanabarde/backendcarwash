@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const orderSchema = new mongoose.Schema(
   {
     invoiceNo: String,
-    customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer" },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer" },
     service: String,
     bill: {
       quantity: Number,

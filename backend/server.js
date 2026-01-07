@@ -10,9 +10,9 @@ const discountKeyRoutes = require("./securityKey/routes/discountRoutes");
 const verifyKeyRoutes = require("./securityKey/routes/verifyRoutes");
 const keyUpdateRoutes = require("./securityKey/routes/keyUpdateRoutes");
 const serviceRoutes = require("./service/routes/serviceRoutes");
-//const routesApi = require("./service/APIKey/routesApi")
 const userServiceRoute = require("./service/routes/userServiceRoute");
 const passwordRoutes = require("./admin/forgotPassword/routes/authRoutes");
+
 
 
 const app = express();

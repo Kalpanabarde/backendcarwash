@@ -2,24 +2,73 @@ const Customer = require("../models/Customer");
 const Order = require("../models/Order");
 
 /* ================= CHECK CUSTOMER ================= */
-exports.checkCustomerByPhone = async (req, res) => {
+
+
+/* ================= CHECK CUSTOMER BY CUSTOMER ID ================= */
+exports.checkCustomerByCode = async (req, res) => {
   try {
-    const { phone } = req.query;
-    if (!phone) return res.status(400).json({ message: "Phone required" });
+    const { customerCode, name } = req.query;
 
-    const customer = await Customer.findOne({ phone });
-    if (!customer) return res.json({ exists: false });
+    if (!customerCode && !name) {
+      return res
+        .status(400)
+        .json({ message: "Customer code or name required" });
+    }
 
-    const latestOrder = await Order.findOne({
-      customerId: customer._id,
-    }).sort({ createdAt: -1 });
+    let customer = null;
+
+    /* ---------- 1️⃣ Try by customerCode ---------- */
+    if (customerCode) {
+      customer = await Customer.findOne({ customerCode });
+    }
+
+    /* ---------- 2️⃣ Fallback: try by name ---------- */
+    if (!customer && name) {
+      const customers = await Customer.find({
+        name: { $regex: name.trim(), $options: "i" }
+
+        //name: { $regex: `^${name.trim()}$`, $options: "i" },
+      });
+
+      if (customers.length === 0) {
+        return res.json({ exists: false });
+      }
+
+      // If multiple customers with same name
+      if (customers.length > 1) {
+        return res.json({
+          exists: true,
+          multiple: true,
+          data: customers.map(c => ({
+            id: c._id,
+            name: c.name,
+            customerCode: c.customerCode,
+            phone: c.phone || null,
+            cars: c.cars,
+          })),
+        });
+      }
+
+      customer = customers[0];
+    }
+
+    if (!customer) {
+      return res.json({ exists: false });
+    }
+
+    /* ---------- 3️⃣ Latest order ---------- */
+    const latestOrder = await Order.findOne({ customer: customer._id })
+      .sort({ createdAt: -1 });
 
     res.json({
       exists: true,
       data: {
+        id: customer._id,
         name: customer.name,
+        customerCode: customer.customerCode,
+        phone: customer.phone || null, // optional
         cars: customer.cars,
-        lastOrderAt: latestOrder?.createdAt,
+        lastOrderAt: latestOrder?.createdAt || null,
       },
     });
   } catch (err) {
@@ -27,42 +76,58 @@ exports.checkCustomerByPhone = async (req, res) => {
   }
 };
 
+
+
 /* ================= CREATE ORDER ================= */
 exports.createOrder = async (req, res) => {
   try {
     const { service, data, TotalPrice, paymentMethod, paymentStatus } = req.body;
 
+    // ✅ Validate required fields
     if (
       !service ||
+      !data?.customerCode ||
       !data?.name ||
-      !data?.phone ||
-      !data?.quantity ||
+      data?.quantity == null ||
       !Array.isArray(data.cars) ||
-      data.cars.length === 0 ||
       !TotalPrice ||
       !paymentMethod
     ) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    let customer = await Customer.findOne({ phone: data.phone });
+    // ------------------
+    // 1️⃣ Find or create customer safely
+    // ------------------
+    let customer = await Customer.findOne({ customerCode: data.customerCode });
 
     if (!customer) {
-      customer = await Customer.create({
+      // Only include phone if it exists to avoid null duplicates
+      const customerData = {
+        customerCode: data.customerCode,
         name: data.name,
-        phone: data.phone,
         cars: data.cars,
-      });
+      };
+      if (data.phone) customerData.phone = data.phone;
+
+      customer = await Customer.create(customerData);
     } else {
+      // Update existing customer cars and phone (if provided)
       customer.cars = data.cars;
+      if (data.phone) customer.phone = data.phone;
       await customer.save();
     }
 
-    const invoiceNo = `INV-${Date.now()}`;
+    // ------------------
+    // 2️⃣ Create order
+    // ------------------
+    //const invoiceNo = `INV-${Date.now()}`;
+    const invoiceNo = `INV-${Date.now()}-${Math.floor(Math.random()*1000)}`
+
 
     const order = await Order.create({
       invoiceNo,
-      customerId: customer._id,
+      customer: customer._id, // relation as ObjectId
       service,
       bill: {
         quantity: data.quantity,
@@ -70,18 +135,33 @@ exports.createOrder = async (req, res) => {
       },
       payment: {
         method: paymentMethod.toLowerCase(),
-        status: paymentStatus || "pending",
+        status: paymentStatus === "paid" ? "paid" : paymentStatus || "pending",
       },
     });
 
+    // ------------------
+    // 3️⃣ Populate customer details for frontend
+    // ------------------
+    const populatedOrder = await Order.findById(order._id).populate("customer");
+
+    // ------------------
+    // 4️⃣ Send response
+    // ------------------
     res.status(201).json({
       message: "Order saved successfully",
-      data: order,
+      data: populatedOrder,
     });
   } catch (err) {
+    console.error("Create order error:", err.message);
+
+    // Handle duplicate key errors more gracefully
     if (err.code === 11000) {
-      return res.status(409).json({ message: "Customer already exists" });
+      return res.status(409).json({
+        message: "Duplicate key error. A customer with this phone already exists.",
+        error: err.keyValue,
+      });
     }
+
     res.status(500).json({ error: err.message });
   }
 };
@@ -96,7 +176,7 @@ exports.getOrderById = async (req, res) => {
     if (!id) return res.status(400).json({ message: "ID required" });
 
     // Fetch order and populate customer details
-    const order = await Order.findById(id).populate("customerId");
+    const order = await Order.findById(id).populate("customer");
 
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -113,7 +193,7 @@ exports.getOrderById = async (req, res) => {
 exports.getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
-      .populate("customerId")
+      .populate("customer")
       .sort({ createdAt: -1 });
 
     res.json(orders);
@@ -152,38 +232,41 @@ exports.getCustomerById = async (req, res) => {
 
 exports.createCustomer = async (req, res) => {
   try {
-    const { name, phone, cars } = req.body;
+    const { customerCode, name, phone, cars } = req.body;
 
-    if (!name || !phone || !Array.isArray(cars) || cars.length === 0) {
-      return res.status(400).json({ message: "Name, phone, and at least one car are required" });
+    if (!customerCode || !name || !Array.isArray(cars) || cars.length === 0) {
+      return res.status(400).json({
+        message: "Customer code, name and cars required",
+      });
     }
 
-    const existingCustomer = await Customer.findOne({ phone });
-    if (existingCustomer) {
+    const exists = await Customer.findOne({ customerCode });
+    if (exists)
       return res.status(409).json({ message: "Customer already exists" });
-    }
 
-    const customer = await Customer.create({ name, phone, cars });
+    const customer = await Customer.create({
+      customerCode,
+      name,
+      phone: phone || null,
+      cars,
+    });
 
-    // Convert to plain object and rename _id to id
-    const customerObj = customer.toObject();
-    customerObj.id = customerObj._id;
-    delete customerObj._id;
-    delete customerObj.__v;
 
-    // Return the record directly at top level
-    res.status(201).json(customerObj);
+
+
+    res.status(201).json(customer);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
 
+
 /* ================= RESET ================= */
 exports.resetOrders = async (req, res) => {
   try {
-    await Order.deleteMany({});
-    await Customer.deleteMany({});
+    //await Order.deleteMany({});
+    //await Customer.deleteMany({});
     res.json({ message: "All orders and customers cleared." });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -205,7 +288,9 @@ exports.updateOrderById = async (req, res) => {
 
     // Update only provided fields
     if (service) order.service = service;
-    if (bill?.quantity) order.bill.quantity = bill.quantity;
+    if (bill?.quantity !== undefined)
+
+    //if (bill?.quantity) order.bill.quantity = bill.quantity;
     if (bill?.totalAmount) order.bill.totalAmount = bill.totalAmount;
     if (payment?.method) order.payment.method = payment.method;
     if (payment?.status) order.payment.status = payment.status;
@@ -248,15 +333,18 @@ exports.deleteOrderById = async (req, res) => {
 exports.updateCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, cars } = req.body;
+    const { customerCode, name, phone, cars } = req.body;
 
     const customer = await Customer.findById(id);
-    if (!customer) {
+    if (!customer)
       return res.status(404).json({ message: "Customer not found" });
-    }
+
+    //if (customerCode) customer.customerCode = customerCode;
+    const exists = await Customer.findOne({ customerCode, _id: { $ne: id }});
+if (exists) return res.status(409).json({ message: "Customer code already used" });
 
     if (name) customer.name = name;
-    if (phone) customer.phone = phone;
+    if (phone !== undefined) customer.phone = phone;
     if (Array.isArray(cars)) customer.cars = cars;
 
     await customer.save();
@@ -270,7 +358,6 @@ exports.updateCustomerById = async (req, res) => {
   }
 };
 
-
 exports.deleteCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -281,7 +368,7 @@ exports.deleteCustomerById = async (req, res) => {
     }
 
     // Optional: delete related orders
-    await Order.deleteMany({ customerId: id });
+    await Order.deleteMany({ customer: id });
 
     res.json({ message: "Customer deleted successfully" });
   } catch (err) {

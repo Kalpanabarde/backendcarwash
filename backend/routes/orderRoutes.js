@@ -4,7 +4,7 @@ const controller = require("../controllers/orderController");
 //const serviceController = require('../controllers/serviceController');
 //const { adminAuth } = require('../middleware/authMiddleware');
 
-router.get("/customer/by-phone", controller.checkCustomerByPhone);
+router.get("/customer/by-customerCode", controller.checkCustomerByCode);
 //router.get('/service', serviceController.getServices);
 //router.get("/service/:id", serviceController.getServiceById);
 router.post("/orders", controller.createOrder);
